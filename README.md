@@ -9,9 +9,9 @@
 With **MedFlow Compass**, you can chart 📊 high-level trends in healthcare payments across various specialties, assess policy impacts, and explore industry behaviors. Whether you’re a policymaker, researcher, healthcare provider, or an informed member of the public, this tool helps you navigate the data and discover actionable insights. 🔍
 
 ### What MedFlow Compass Offers:
-- 🖥️ **Interactive Dashboard for Trend Discovery**: Visualize key trends in healthcare payments, research funding, and compliance metrics, making it simple to spot emerging patterns and behaviors.
-- 📥 **Downloadable Data for Independent Exploration**: Access clean, ready-to-analyze datasets, allowing deeper dives into specific questions or personal analysis.
-- 🚀 **Easy Navigation**: Focus on high-level trends with intuitive filters for specialties, regions, and payment categories, making the complex data landscape easier to explore.
+- 🖥️ **Interactive Dashboard for Trend Discovery**: Visualize key trends in healthcare payments, research funding, and compliance metrics, making it simple to spot emerging patterns and behaviors. (Coming Soon)
+- 📥 **Downloadable Data for Independent Exploration**: Access clean, ready-to-analyze datasets, allowing deeper dives into specific questions or personal analysis. (Coming Soon)
+- 🚀 **Easy Navigation**: Focus on high-level trends with intuitive filters for specialties, regions, and payment categories, making the complex data landscape easier to explore. (Coming Soon)
 
 ### Powered By:
 
