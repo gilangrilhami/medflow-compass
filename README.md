@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/medflow_compass.webp" alt="MedFlow Compass Logo" width="200px">
+</p>
+
 # 🧭 MedFlow Compass: Navigating Insights in Healthcare Payments 💡
 
 **MedFlow Compass** is a personal data engineering project designed to guide users through the complex landscape of healthcare payments using the CMS Open Payments Dataset. 🌐 Initially created to promote transparency between healthcare providers and the pharmaceutical/medical device industries, this dataset is a wealth of information on general payments, research funding, and physician ownership interests.
@@ -10,6 +14,16 @@ With **MedFlow Compass**, you can chart 📊 high-level trends in healthcare pay
 - 🚀 **Easy Navigation**: Focus on high-level trends with intuitive filters for specialties, regions, and payment categories, making the complex data landscape easier to explore.
 
 ### Powered By:
+
+<p align="center">
+  <img src="assets/256px-Apache_Spark_logo.svg.png" alt="Apache Spark" height="96px" style="margin-right: 15px;">
+  <img src="assets/Jupyter_logo.svg" alt="Jupyter" height="96px" style="margin-right: 15px;">
+  <img src="assets/fabric_48_color.png" alt="Microsoft Fabric" height="96px" style="margin-right: 15px;">
+  <img src="assets/power_bi_32_color.png" alt="Power BI" height="96px" style="margin-right: 15px;">
+  <img src="assets/synapse_48_color.png" alt="Synapse" height="96px">
+</p>
+
+
 Built using **Microsoft Fabric**'s comprehensive tools, including **PySpark**, **Synapse**, **Notebooks**, and **PowerBI**, **MedFlow Compass** offers a scalable and efficient way to process, visualize, and share insights. ⚙️
 
 ### Dataset Overview:
