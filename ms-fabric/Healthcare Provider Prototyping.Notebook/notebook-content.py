@@ -22,6 +22,7 @@
 # CELL ********************
 
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, LongType, DateType, DecimalType
+
 general_payment_schema = StructType([
     StructField("Change_Type", StringType(), True),
     StructField("Covered_Recipient_Type", StringType(), True),
@@ -268,8 +269,55 @@ research_payment_schema = StructType([
 
 # CELL ********************
 
-df_general = spark.read.format("csv").option("header","true").schema(general_payment_schema).load("Files/dataset/general_payments.csv")
-# df now is a Spark DataFrame containing CSV data from "Files/dataset/general_payments.csv".
+cols_of_interest = [
+    "Physician_Primary_Type",
+    "Physician_Specialty",
+    "Total_Amount_of_Payment_USDollars",
+    "Date_of_Payment",
+    "Recipient_City",
+    "Recipient_State",
+    "Recipient_Country",
+    "Record_ID"
+]
+
+cols_of_interest_research_specific = [
+  "Principal_Investigator_1_Primary_Type",
+  "Principal_Investigator_1_Specialty",
+  "Principal_Investigator_2_Primary_Type",
+  "Principal_Investigator_2_Specialty",
+  "Principal_Investigator_3_Primary_Type",
+  "Principal_Investigator_3_Specialty",
+  "Principal_Investigator_4_Primary_Type",
+  "Principal_Investigator_4_Specialty",
+  "Principal_Investigator_5_Primary_Type",
+  "Principal_Investigator_5_Specialty",
+]
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+df_general = spark.read.format("csv").option("header","true").schema(general_payment_schema).load("Files/dataset/general_payments.csv").select(
+    cols_of_interest
+)
+df_research = spark.read.format("csv").option("header","true").schema(research_payment_schema).load("Files/dataset/research_payments.csv").select(
+    cols_of_interest + cols_of_interest_research_specific
+)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
 display(df_general)
 
 # METADATA ********************
@@ -281,9 +329,221 @@ display(df_general)
 
 # CELL ********************
 
-df_research = spark.read.format("csv").option("header","true").schema(research_payment_schema).load("Files/dataset/research_payments.csv")
-# df now is a Spark DataFrame containing CSV data from "Files/dataset/research_payments.csv".
 display(df_research)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+from pyspark.sql import functions as F
+
+df_struct_investigators = df_research.withColumn(
+    "investigators", 
+    F.array(
+        F.struct(
+            F.col("Principal_Investigator_1_Primary_Type").alias("Primary_Type"), 
+            F.col("Principal_Investigator_1_Specialty").alias("Specialty")
+        ),
+        F.struct(
+            F.col("Principal_Investigator_2_Primary_Type").alias("Primary_Type"), 
+            F.col("Principal_Investigator_2_Specialty").alias("Specialty")
+        ),
+        F.struct(
+            F.col("Principal_Investigator_3_Primary_Type").alias("Primary_Type"), 
+            F.col("Principal_Investigator_3_Specialty").alias("Specialty")
+        ),
+        F.struct(
+            F.col("Principal_Investigator_4_Primary_Type").alias("Primary_Type"), 
+            F.col("Principal_Investigator_4_Specialty").alias("Specialty")
+        ),
+        F.struct(
+            F.col("Principal_Investigator_5_Primary_Type").alias("Primary_Type"), 
+            F.col("Principal_Investigator_5_Specialty").alias("Specialty")
+        )
+    )
+)
+
+df_exploded_investigators = df_struct_investigators.withColumn(
+    "exploded_investigator", 
+    F.explode("investigators")
+)
+
+df_type_and_sepciality = df_exploded_investigators.withColumn(
+    "Primary_Type", 
+    df_exploded_investigators["exploded_investigator"].getItem("Primary_Type")
+).withColumn(
+    "Specialty", 
+    df_exploded_investigators["exploded_investigator"].getItem("Specialty")
+)
+
+df_filtered = df_type_and_sepciality.filter(
+    F.col("Primary_Type").isNotNull() & F.col("Specialty").isNotNull()
+).withColumn("num_investigators", 
+    F.size(
+        F.filter(
+            F.col("investigators"), 
+            lambda x: x["Primary_Type"].isNotNull()
+        )
+    )
+).withColumn(
+    "Total_Amount_of_Payment_USDollars", 
+    F.col("Total_Amount_of_Payment_USDollars") / F.col("num_investigators")
+)
+
+df_final = df_filtered.withColumn(
+    "Physician_Primary_Type",
+    F.coalesce(
+        F.col("Physician_Primary_Type"), 
+        F.col("Primary_Type")
+    )
+).withColumn(
+    "Physician_Specialty", 
+    F.coalesce(
+        F.col("Physician_Specialty"), 
+        F.col("Specialty")
+    )
+).select(
+    cols_of_interest
+)
+
+display(
+    df_final
+)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+df_combined = df_general.union(df_final)
+display(df_combined)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+from pyspark.sql.functions import col, sum as spark_sum, avg, to_date, date_format
+
+df_changed_date = df_combined.withColumn(
+    'Date_of_Payment', 
+    to_date(
+        col('Date_of_Payment'), 'MM/dd/yyyy'
+    )
+).withColumn(
+    'Payment_Month', 
+    date_format(
+        col('Date_of_Payment'), 'yyyy-MM'
+    )
+)
+
+specialty_payment_monthly = df_changed_date.groupBy(
+    'Physician_Specialty', 'Payment_Month'
+).agg(
+    spark_sum('Total_Amount_of_Payment_USDollars').alias('Total_Payment')
+)
+
+national_average_monthly = df_changed_date.groupBy(
+    'Payment_Month'
+).agg(
+    avg('Total_Amount_of_Payment_USDollars').alias('National_Average')
+)
+
+df_comparison = specialty_payment_monthly.join(
+    national_average_monthly, 
+    on='Payment_Month'
+)
+
+display(df_comparison)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+import matplotlib.pyplot as plt
+import ipywidgets as widgets
+from IPython.display import display
+
+def plot_specialty_vs_national(selected_specialties):
+    plt.figure(figsize=(10, 6))
+    
+    # Plot the national average
+    national_avg = df_pd_comparison.groupby('Payment_Month')['National_Average'].mean()
+    plt.plot(national_avg.index, national_avg.values, label='National Average', color='black', linestyle='--')
+    
+    # Plot each selected specialty
+    for specialty in selected_specialties:
+        specialty_data = df_pd_comparison[df_pd_comparison['Physician_Specialty'] == specialty]
+        plt.plot(specialty_data['Payment_Month'], specialty_data['Total_Payment'].sum(), label=specialty)
+    
+    plt.title("Specialty Payment vs National Average")
+    plt.xlabel("Payment Month")
+    plt.ylabel("Total Payment (USD)")
+    plt.xticks(rotation=45)
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+specialty_options = df_pd_comparison['Physician_Specialty'].unique()
+specialty_selector = widgets.SelectMultiple(
+    options=specialty_options,
+    value=[specialty_options[0]],  # Default selection
+    description='Specialties',
+    disabled=False
+)
+
+# Step 5: Create an interactive widget that updates the plot
+widgets.interactive(plot_specialty_vs_national, selected_specialties=specialty_selector)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+import numpy as np
+from scipy.stats import gaussian_kde
+
+data = df_pd_comparison['Total_Payment'].astype("float").values
+
+# Create the distribution plot (histogram)
+plt.figure(figsize=(8,6))
+plt.hist(data, bins=30, edgecolor='black', alpha=0.5, density=True)
+
+# Add KDE plot
+kde = gaussian_kde(data)
+x_vals = np.linspace(min(data), max(data), 1000)
+plt.plot(x_vals, kde(x_vals), color='red', lw=2)
+
+# Add title and labels
+plt.title('Distribution with KDE')
+plt.xlabel('Value')
+plt.ylabel('Density')
+
+# Show the plot
+plt.show()
 
 # METADATA ********************
 
