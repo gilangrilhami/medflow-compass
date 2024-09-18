@@ -277,7 +277,22 @@ cols_of_interest = [
     "Recipient_City",
     "Recipient_State",
     "Recipient_Country",
-    "Record_ID"
+    "Record_ID",
+    "Covered_Recipient_Type",
+    "Name_of_Associated_Covered_Drug_or_Biological1",
+    "Name_of_Associated_Covered_Drug_or_Biological2",
+    "Name_of_Associated_Covered_Drug_or_Biological3",
+    "Name_of_Associated_Covered_Drug_or_Biological4",
+    "Name_of_Associated_Covered_Drug_or_Biological5",
+    "Name_of_Associated_Covered_Device_or_Medical_Supply1",
+    "Name_of_Associated_Covered_Device_or_Medical_Supply2",
+    "Name_of_Associated_Covered_Device_or_Medical_Supply3",
+    "Name_of_Associated_Covered_Device_or_Medical_Supply4",
+    "Name_of_Associated_Covered_Device_or_Medical_Supply5"
+]
+
+cols_of_interest_general_specific = [
+  "Nature_of_Payment_or_Transfer_of_Value"
 ]
 
 cols_of_interest_research_specific = [
@@ -303,7 +318,7 @@ cols_of_interest_research_specific = [
 # CELL ********************
 
 df_general = spark.read.format("csv").option("header","true").schema(general_payment_schema).load("Files/dataset/general_payments.csv").select(
-    cols_of_interest
+    cols_of_interest + cols_of_interest_general_specific
 )
 df_research = spark.read.format("csv").option("header","true").schema(research_payment_schema).load("Files/dataset/research_payments.csv").select(
     cols_of_interest + cols_of_interest_research_specific
@@ -330,6 +345,217 @@ display(df_general)
 # CELL ********************
 
 display(df_research)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+from pyspark.sql.functions import *
+
+cols_drug_bio = [
+    'Name_of_Associated_Covered_Drug_or_Biological1',
+    'Name_of_Associated_Covered_Drug_or_Biological2',
+    'Name_of_Associated_Covered_Drug_or_Biological3',
+    'Name_of_Associated_Covered_Drug_or_Biological4',
+    'Name_of_Associated_Covered_Drug_or_Biological5'
+]
+
+cols_device_medical = [
+    'Name_of_Associated_Covered_Device_or_Medical_Supply1',
+    'Name_of_Associated_Covered_Device_or_Medical_Supply2',
+    'Name_of_Associated_Covered_Device_or_Medical_Supply3',
+    'Name_of_Associated_Covered_Device_or_Medical_Supply4',
+    'Name_of_Associated_Covered_Device_or_Medical_Supply5'
+]
+
+df_array_fields = df_general.withColumn(
+    "drugs_or_biologicals",
+    array(*cols_drug_bio)
+).withColumn(
+    "drugs_or_biologicals",
+    array_compact("drugs_or_biologicals")
+).withColumn(
+    "devices_or_medical_supplies",
+    array(*cols_device_medical)
+).withColumn(
+    "devices_or_medical_supplies",
+    array_compact("devices_or_medical_supplies")
+)
+
+df_convert_date = df_array_fields.withColumn(
+    'date_of_payment', 
+    to_date(
+        col('Date_of_Payment'), 'MM/dd/yyyy'
+    )
+)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+df_split_specialties = df_convert_date.withColumn(
+    "specialty_split",
+    split(
+        regexp_replace("Physician_Specialty", "/ ", "|"),
+        "\|"
+    )
+).withColumn(
+    "pipe_char_count", size(col("specialty_split"))
+).withColumn(
+    "specialty_main",
+    when(col("pipe_char_count") == 1, col("specialty_split")[0])
+    .when(col("pipe_char_count") == 2, col("specialty_split")[0])
+    .when(col("pipe_char_count") >= 3, col("specialty_split")[0])
+    .otherwise(lit("No Specialty"))
+).withColumn(
+    "specialty_type",
+    when(col("pipe_char_count") == 1, lit("No Specialty Type"))
+    .when(col("pipe_char_count") == 2, col("specialty_split")[1])
+    .when(col("pipe_char_count") >= 3, col("specialty_split")[1])
+    .otherwise(lit("No Specialty Type"))
+).withColumn(
+    "specialty_subtype",
+    when(col("pipe_char_count") == 1, lit("No Specialty Subtype"))
+    .when(col("pipe_char_count") == 2, lit("No Specialty Subtype"))
+    .when(col("pipe_char_count") == 3, col("specialty_split")[2])
+    .when(col("pipe_char_count") > 3, concat_ws(" | ", slice(col("specialty_split"), 3, 100))) # Handle more than 3 elements
+    .otherwise(lit("No Specialty Subtype"))
+)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+df_fina = df_split_specialties.withColumn(
+    "recipient_type",
+    regexp_replace("Covered_Recipient_Type", "Covered Recipient ", "")
+).withColumnsRenamed(
+    {
+        "Physician_Primary_Type": "primary_type",
+        "Total_Amount_of_Payment_USDollars": "total_amount",
+        "Recipient_City": "recipient_city",
+        "Recipient_State": "recipient_state",
+        "Recipient_Country": "recipient_country",
+        "Record_ID": "record_id",
+        "Nature_of_Payment_or_Transfer_of_Value": "payment_nature"
+    }
+).select(
+    "record_id",
+    "total_amount",
+    "payment_nature",
+    "recipient_type",
+    "primary_type",
+    "specialty_main",
+    "specialty_type",
+    "specialty_subtype",
+    "recipient_city",
+    "recipient_state",
+    "recipient_country",
+    "drugs_or_biologicals",
+    "devices_or_medical_supplies"
+)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+display(df_fina)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# MARKDOWN ********************
+
+# # Inspect `Physician_Specialty` Field
+
+# CELL ********************
+
+physician_specialty = df_general.select("Physician_Specialty").drop_duplicates().withColumn(
+    "specialty",
+    regexp_replace("Physician_Specialty", "/ ", "|")
+)
+
+physician_specialty = physician_specialty.withColumn(
+    "specialty_split", split(col("specialty"), "\|")
+)
+
+physician_specialty = physician_specialty.withColumn(
+    "pipe_char_count", size(col("specialty_split"))
+)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+display(
+    physician_specialty.withColumn(
+        "speciality_main",
+        when(col("pipe_char_count") == 1, col("specialty_split")[0])
+        .when(col("pipe_char_count") == 2, col("specialty_split")[0])
+        .when(col("pipe_char_count") >= 3, col("specialty_split")[0])
+        .otherwise(lit("No Specialty"))
+    ).withColumn(
+        "speciality_type",
+        when(col("pipe_char_count") == 1, lit("No Specialty Type"))
+        .when(col("pipe_char_count") == 2, col("specialty_split")[1])
+        .when(col("pipe_char_count") >= 3, col("specialty_split")[1])
+        .otherwise(lit("No Specialty Type"))
+    ).withColumn(
+        "speciality_subtype",
+        when(col("pipe_char_count") == 1, lit("No Specialty Subtype"))
+        .when(col("pipe_char_count") == 2, lit("No Specialty Subtype"))
+        .when(col("pipe_char_count") == 3, col("specialty_split")[2])
+        .when(col("pipe_char_count") > 3, concat_ws(" | ", slice(col("specialty_split"), 3, 100))) # Handle more than 3 elements
+        .otherwise(lit("No Specialty Subtype"))
+    ).select("speciality_main", "speciality_type", "speciality_subtype")
+)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+df_general_no_schema = spark.read.format("csv").option("header","true").load("Files/dataset/general_payments.csv")
+
+display(
+    df_general_no_schema.filter(
+        col("Teaching_Hospital_ID").isNotNull() &
+        col("Physician_Specialty").isNull()
+    )
+)
 
 # METADATA ********************
 
@@ -468,82 +694,6 @@ df_comparison = specialty_payment_monthly.join(
 )
 
 display(df_comparison)
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-import matplotlib.pyplot as plt
-import ipywidgets as widgets
-from IPython.display import display
-
-def plot_specialty_vs_national(selected_specialties):
-    plt.figure(figsize=(10, 6))
-    
-    # Plot the national average
-    national_avg = df_pd_comparison.groupby('Payment_Month')['National_Average'].mean()
-    plt.plot(national_avg.index, national_avg.values, label='National Average', color='black', linestyle='--')
-    
-    # Plot each selected specialty
-    for specialty in selected_specialties:
-        specialty_data = df_pd_comparison[df_pd_comparison['Physician_Specialty'] == specialty]
-        plt.plot(specialty_data['Payment_Month'], specialty_data['Total_Payment'].sum(), label=specialty)
-    
-    plt.title("Specialty Payment vs National Average")
-    plt.xlabel("Payment Month")
-    plt.ylabel("Total Payment (USD)")
-    plt.xticks(rotation=45)
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
-
-specialty_options = df_pd_comparison['Physician_Specialty'].unique()
-specialty_selector = widgets.SelectMultiple(
-    options=specialty_options,
-    value=[specialty_options[0]],  # Default selection
-    description='Specialties',
-    disabled=False
-)
-
-# Step 5: Create an interactive widget that updates the plot
-widgets.interactive(plot_specialty_vs_national, selected_specialties=specialty_selector)
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
-import numpy as np
-from scipy.stats import gaussian_kde
-
-data = df_pd_comparison['Total_Payment'].astype("float").values
-
-# Create the distribution plot (histogram)
-plt.figure(figsize=(8,6))
-plt.hist(data, bins=30, edgecolor='black', alpha=0.5, density=True)
-
-# Add KDE plot
-kde = gaussian_kde(data)
-x_vals = np.linspace(min(data), max(data), 1000)
-plt.plot(x_vals, kde(x_vals), color='red', lw=2)
-
-# Add title and labels
-plt.title('Distribution with KDE')
-plt.xlabel('Value')
-plt.ylabel('Density')
-
-# Show the plot
-plt.show()
 
 # METADATA ********************
 
