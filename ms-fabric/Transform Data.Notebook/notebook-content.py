@@ -286,6 +286,7 @@ cols_of_interest = [
     "Physician_Primary_Type",
     "Physician_Specialty",
     "Total_Amount_of_Payment_USDollars",
+    "Form_of_Payment_or_Transfer_of_Value",
     "Date_of_Payment",
     "Recipient_City",
     "Recipient_State",
@@ -516,7 +517,7 @@ COLUMNS_DEVICES_OR_MEDICAL_SUPPLIES = [
 ]
 
 COLUMNS_TRANSFORMATION_OUTPUT = [
-    "record_id", "total_amount", "payment_nature", "date_of_payment", "recipient_type", "primary_type",
+    "record_id", "total_amount", "payment_nature", "payment_form", "date_of_payment", "recipient_type", "primary_type",
     "specialty_main", "specialty_type", "specialty_subtype", "recipient_city",
     "recipient_state", "recipient_country", "drugs_or_biologicals", "devices_or_medical_supplies",
     "principal_investigators"
@@ -530,6 +531,7 @@ MAPPING_RENAMED_COLUMNS = {
     "Recipient_Country": "recipient_country",
     "Record_ID": "record_id",
     "Nature_of_Payment_or_Transfer_of_Value": "payment_nature",
+    "Form_of_Payment_or_Transfer_of_Value": "payment_form"
 }
 
 transformer = GeneralPaymentTransformer(df_general)
@@ -635,7 +637,7 @@ RESEARCH_COLUMNS_DEVICES_OR_MEDICAL_SUPPLIES = [
 ]
 
 RESEARCH_COLUMNS_TRANSFORMATION_OUTPUT = [
-    "record_id", "total_amount", "payment_nature", "date_of_payment", "recipient_type", "primary_type",
+    "record_id", "total_amount", "payment_nature", "payment_form", "date_of_payment", "recipient_type", "primary_type",
     "specialty_main", "specialty_type", "specialty_subtype", "recipient_city",
     "recipient_state", "recipient_country", "drugs_or_biologicals", "devices_or_medical_supplies",
     "principal_investigators"
@@ -664,6 +666,7 @@ RESEARCH_MAPPING_RENAMED_COLUMNS = {
     "Recipient_State": "recipient_state",
     "Recipient_Country": "recipient_country",
     "Record_ID": "record_id",
+    "Form_of_Payment_or_Transfer_of_Value": "payment_form"
 }
 
 transformer = ResearchPaymentTransformer(df_research)
@@ -717,17 +720,7 @@ display(df_research_transformed)
 # CELL ********************
 
 df_final = df_general_transformed.union(df_research_transformed)
-df_final.write.format("delta").saveAsTable("stage_payment")
-
-# METADATA ********************
-
-# META {
-# META   "language": "python",
-# META   "language_group": "synapse_pyspark"
-# META }
-
-# CELL ********************
-
+df_final.write.format("delta").mode("overwrite").saveAsTable("stage_payment")
 
 # METADATA ********************
 
