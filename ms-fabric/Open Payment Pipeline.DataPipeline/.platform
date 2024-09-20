@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "DataPipeline",
+    "displayName": "Open Payment Pipeline"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "13bae0d0-89b0-4114-843c-168193be0c92"
+  }
+}
