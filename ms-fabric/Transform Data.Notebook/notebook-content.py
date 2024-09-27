@@ -417,6 +417,20 @@ class BaseTransformer:
         Select final columns for the DataFrame.
         """
         return self.df.select(*columns)
+    
+    def fill_nulls(self, null_replacements: Dict[str, any]) -> "BaseTransformer":
+        """
+        Fill null values for specified columns based on a provided dictionary of replacements.
+
+        :param null_replacements: A dictionary where keys are column names and values are the replacements for null values.
+
+        :return: BaseTransformer object with the transformation applied.
+        """
+        for col_name, replacement_value in null_replacements.items():
+            self.df = self.df.withColumn(
+                col_name, coalesce(col(col_name), lit(replacement_value))
+            )
+        return self
 
 
 
@@ -534,6 +548,11 @@ MAPPING_RENAMED_COLUMNS = {
     "Form_of_Payment_or_Transfer_of_Value": "payment_form"
 }
 
+MAPPING_NULL_VAUES = {
+    "primary_type": "No Primary Type",
+    "recipient_state": "No Recipient State"
+}
+
 transformer = GeneralPaymentTransformer(df_general)
 df_general_transformed = (
     transformer
@@ -557,12 +576,14 @@ df_general_transformed = (
         array()
     )
     .rename_columns(MAPPING_RENAMED_COLUMNS)
+    .fill_nulls(MAPPING_NULL_VAUES)
     .select_final_columns(COLUMNS_TRANSFORMATION_OUTPUT)
 )
 
 display(
     df_general_transformed
 )
+
 
 # METADATA ********************
 
@@ -669,6 +690,13 @@ RESEARCH_MAPPING_RENAMED_COLUMNS = {
     "Form_of_Payment_or_Transfer_of_Value": "payment_form"
 }
 
+RESEARCH_MAPPING_NULL_VALUES = {
+    "primary_type": "No Primary Type",
+    "recipient_state": "No Recipient State",
+    "recipient_city": "No Recipient City",
+    "recipient_country": "No Recipient Country"
+}
+
 transformer = ResearchPaymentTransformer(df_research)
 df_research_transformed = (
     transformer
@@ -701,10 +729,22 @@ df_research_transformed = (
         "payment_nature",
         "Research"
     )
+    .fill_nulls(RESEARCH_MAPPING_NULL_VALUES)
     .select_final_columns(RESEARCH_COLUMNS_TRANSFORMATION_OUTPUT)
 )
 
 display(df_research_transformed)
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
+display(df_research_transformed.select([sum(col(c).isNull().cast("int")).alias(c) for c in df_research_transformed.columns]))
 
 # METADATA ********************
 
@@ -721,6 +761,16 @@ display(df_research_transformed)
 
 df_final = df_general_transformed.union(df_research_transformed)
 df_final.write.format("delta").mode("overwrite").saveAsTable("stage_payment")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
 
 # METADATA ********************
 
